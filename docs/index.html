@@ -32,11 +32,13 @@ input{font:inherit;color:var(--ink);background:var(--surface);border:1px solid v
 .note{color:var(--muted);font-size:12px;max-width:80ch;margin-top:12px}
 .err{color:var(--bad);margin:8px 0}
 .stale{color:var(--warn)}
+.nv{display:flex;gap:18px;margin:2px 0 10px;border-bottom:1px solid var(--line)}.nv a{color:var(--muted);text-decoration:none;font-weight:500;padding:6px 0;border-bottom:2px solid transparent}.nv a.on{color:var(--ink);border-bottom-color:var(--accent)}
 </style>
 </head>
 <body>
 <main>
-<h1>EdgeStack paper book, live</h1>
+<nav class="nv"><a class="on" href="index.html">Today, live</a><a href="overall.html">Overall P&amp;L</a></nav>
+<h1>Today's paper book, live</h1>
 <p class="sub" id="sub">Booked and open P&amp;L of today's paper trades.</p>
 <div id="gate" hidden>
   <p>Enter the passphrase for this page (asked once per device).</p>
