@@ -70,12 +70,13 @@ async function decrypt(box,pw){
 function paint(T){
   const open=T.open_total||0, day=(T.net||0)+(T.unreal||0);
   const rows=(T.strategies||[]).filter(x=>x.closed||(x.open||[]).length).map(x=>{const t=x.net+(x.unreal||0);
-    return `<tr><td class="l">${esc(x.strategy)}</td><td>${x.closed}</td><td class="${tone(x.net)}">${x.closed?rs(x.net,1):'–'}</td><td>${(x.open||[]).length?(x.open.length+(x.marked<x.open.length?' ('+x.marked+' priced)':'')):'–'}</td><td class="${tone(x.unreal)}">${x.marked?rs(x.unreal,1):'–'}</td><td class="${tone(t)}">${(x.closed||x.marked)?rs(t,1):'–'}</td></tr>`}).join('');
+    return `<tr><td class="l">${esc(x.strategy)}</td><td>${x.capital?rs(x.capital)+(x.capital_basis==='backtest estimate'?' (est.)':''):'–'}</td><td>${x.closed}</td><td class="${tone(x.net)}">${x.closed?rs(x.net,1):'–'}</td><td>${(x.open||[]).length?(x.open.length+(x.marked<x.open.length?' ('+x.marked+' priced)':'')):'–'}</td><td class="${tone(x.unreal)}">${x.marked?rs(x.unreal,1):'–'}</td><td class="${tone(t)}">${(x.closed||x.marked)?rs(t,1):'–'}</td></tr>`}).join('');
   $('#out').innerHTML=`<div class="tiles">
   <div class="tile"><div class="k">Booked (closed) today</div><div class="v ${tone(T.net)}">${rs(T.net,1)}</div><div class="s">${T.closed} closed positions · costs ${rs(T.costs)}</div></div>
   <div class="tile"><div class="k">Open positions, priced now</div><div class="v ${tone(T.unreal)}">${T.marked?rs(T.unreal,1):'n/a'}</div><div class="s">${T.marked} of ${open} open have a live price</div></div>
+  <div class="tile"><div class="k">Capital needed, strategies active today</div><div class="v">${T.capital_total?rs(T.capital_total):'n/a'}</div><div class="s">sum of each strategy\'s own need (they rarely peak together)</div></div>
   <div class="tile"><div class="k">Day so far (booked + priced open)</div><div class="v ${tone(day)}">${rs(day,1)}</div><div class="s">${T.marks_age==null?'no live prices yet':'prices '+T.marks_age+' s old'}</div></div></div>
-  <div class="tablewrap"><table><thead><tr><th class="l">Strategy</th><th>Closed</th><th>Booked P&amp;L</th><th>Open</th><th>Open P&amp;L (priced)</th><th>Day so far</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  <div class="tablewrap"><table><thead><tr><th class="l">Strategy</th><th title="Money to set aside to run it (peak margin + cushion). est. = from its backtest, no paper trades yet">Capital needed</th><th>Closed</th><th>Booked P&amp;L</th><th>Open</th><th>Open P&amp;L (priced)</th><th>Day so far</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   $('#sub').textContent=`${T.date} · as of ${T.asof} IST`;
   $('#note').textContent=T.note||'';
   last=Date.now();
