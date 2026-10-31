@@ -109,6 +109,17 @@ function monthBars(series){
 }
 
 /* ---------- TODAY ---------- */
+function openPnl(s){            // value of the Open P&L cell plus a tag that says why a position has no live price (31 Oct 2026)
+  const o=s.open||[];if(!o.length)return '–';
+  const n={live:0,mid:0,last:0,none:0};o.forEach(p=>n[p.price_state||'none']++);
+  const why=(o.find(p=>p.why_unpriced)||{}).why_unpriced||'no quote';
+  const lastT=(o.find(p=>p.price_state==='last')||{}).price_asof;
+  let v=s.marked?`<span class="${tone(s.unreal)}">${rs(s.unreal,1)}</span>`:'';
+  if(n.none)v+=(v?' ':'')+`<span class="pill warn" title="${esc(why)}">${n.none===o.length?'no price':n.none+' no price'}</span>`;
+  if(n.last)v+=` <span class="pill" title="Newest price the engine had (${esc(lastT||'')} IST); the feed is not live now">last ${esc(lastT||'')}</span>`;
+  if(n.mid)v+=` <span class="pill" title="This option has a bid and ask but has not traded yet; valued at the middle of the two">mid</span>`;
+  return v||'–';
+}
 function renderToday(T){
   const S=(T.strategies||[]).map(s=>({...s,day:s.net+(s.marked?s.unreal:0)}));
   const IST=new Date(Date.now()+ (new Date().getTimezoneOffset()+330)*60000),todayIso=IST.toISOString().slice(0,10);
@@ -120,7 +131,7 @@ function renderToday(T){
   $('#main').innerHTML=`
   <div class="hero"><div><div class="lbl">${esc(dt.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'}))}${stale?' · last session':''}</div><div class="big ${tone(dayTot)}">${rs(dayTot,1)}</div><div class="muted" style="margin-top:4px">Day so far: booked + open positions at live prices</div></div>
    <div class="side"><div><span class="lbl">Booked</span><b class="${tone(T.net)}">${rs(T.net,1)}</b></div><div><span class="lbl">Open, priced</span><b class="${tone(T.unreal)}">${T.marked?rs(T.unreal,1):'n/a'}</b></div><div><span class="lbl">Charges</span><b>${rs(T.costs)}</b></div></div></div>
-  <div class="tiles">${tile('Closed positions',NF.format(T.closed),`${S.filter(s=>s.closed).length} strategies traded`)}${tile('Open positions',NF.format(T.open_total),`${T.marked} of ${T.open_total} have a live price`)}${tile('Capital behind today',cap(T.capital_total),'sum of each strategy’s own need; they rarely peak together')}${tile('Strategies active',NF.format(S.length),groups.map(g=>g.t.short+' '+g.n).join(' · '))}</div>
+  <div class="tiles">${tile('Closed positions',NF.format(T.closed),`${S.filter(s=>s.closed).length} strategies traded`)}${tile('Open positions',NF.format(T.open_total),T.open_total?`${T.marked} of ${T.open_total} priced${S.reduce((a,s)=>a+(s.open||[]).filter(p=>p.price_state==='last').length,0)?' · some at last price':''}`:'none open')}${tile('Capital behind today',cap(T.capital_total),'sum of each strategy’s own need; they rarely peak together')}${tile('Strategies active',NF.format(S.length),groups.map(g=>g.t.short+' '+g.n).join(' · '))}</div>
   <h2>By strategy type <span class="aside">click a card to filter</span></h2>
   <div class="types">${groups.map(g=>`<button class="tcard ${curType===g.t.id?'on':''}" data-t="${g.t.id}" style="--tc:${g.t.color}"><div class="n">${esc(g.t.label)}<small>${g.n} strateg${g.n>1?'ies':'y'}</small></div><div class="pl ${tone(g.day)}">${rs(g.day,1)}</div><div class="meta">${g.closed} closed · ${g.open} open · capital ${cap(g.cap)}</div></button>`).join('')}</div>
   <div class="tools"><div class="seg" id="seg"></div><input id="q" type="search" placeholder="Search strategy…" aria-label="Search strategy"><span class="grow"></span></div>
@@ -135,7 +146,7 @@ function renderToday(T){
       h+=`<tr class="grp"><td class="l" colspan="2"><span class="gl"><span class="sd" style="width:9px;height:9px;border-radius:3px;background:${t.color}"></span>${esc(t.label)} <span class="muted" style="font-weight:450">${rs_.length}</span></span></td><td></td><td></td><td></td><td></td><td class="${tone(sub)}">${rs(sub,1)}</td></tr>`;
       rs_.forEach(s=>{const o=(s.open||[]).length;h+=`<tr class="row"><td class="l"><div class="sname" style="--tc:${t.color}"><span class="sd"></span><span>${esc(s.strategy)}</span></div></td>
        <td>${s.capital?cap(s.capital)+(s.capital_basis==='backtest estimate'?' <span class="faint">est.</span>':''):'–'}</td><td>${s.closed||'–'}</td><td class="${tone(s.net)}">${s.closed?rs(s.net,1):'–'}</td>
-       <td>${o?o+(s.marked<o?` <span class="faint">(${s.marked} priced)</span>`:''):'–'}</td><td class="${tone(s.unreal)}">${s.marked?rs(s.unreal,1):'–'}</td>
+       <td>${o||'–'}</td><td>${openPnl(s)}</td>
        <td class="${tone(s.day)}" style="font-weight:650">${(s.closed||s.marked)?rs(s.day,1):'–'}<i class="bar" style="width:${Math.abs(s.day)/mx*70}px;background:var(--${s.day>=0?'good':'bad'});opacity:.7"></i></td></tr>`})});
     $('#tbl').innerHTML=`<thead><tr><th class="l">Strategy</th><th>Capital</th><th>Closed</th><th>Booked</th><th>Open</th><th>Open P&amp;L</th><th>Day so far</th></tr></thead><tbody>${h||'<tr><td class="l" colspan="7"><div class="empty">No strategies match.</div></td></tr>'}</tbody>`};
   seg($('#seg'),typeOpts(counts),curType,v=>{curType=v;store.set('edge_type',v);draw();document.querySelectorAll('.tcard').forEach(c=>c.classList.toggle('on',c.dataset.t===v))});
