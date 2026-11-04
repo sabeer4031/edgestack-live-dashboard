@@ -4,8 +4,8 @@ const REPO='sabeer4031/edgestack-live-dashboard';
 const FILES={today:'today.enc.json',overall:'overall.enc.json'};
 const TYPES=[
   {id:'buy',label:'Intraday buying',short:'Buying',color:'var(--t-buy)',help:'Long futures or bought calls / puts, flat the same day'},
-  {id:'sell',label:'Intraday selling',short:'Selling',color:'var(--t-sell)',help:'Short futures or sold options, flat the same day'},
-  {id:'both',label:'Intraday buying + selling',short:'Both sides',color:'var(--t-both)',help:'Trades long and short, flat the same day'},
+  {id:'sell',label:'Intraday selling (short futures)',short:'Short futures',color:'var(--t-sell)',help:'Short futures only (no option is ever sold), flat the same day'},
+  {id:'both',label:'Intraday futures long + short',short:'Futures long + short',color:'var(--t-both)',help:'Futures bought on some days and shorted on others, flat the same day'},
   {id:'swing',label:'Swing / multi-day',short:'Swing',color:'var(--t-swing)',help:'Held overnight or for days'}];
 const TYPE=Object.fromEntries(TYPES.map(t=>[t.id,t]));
 const $=(s,r=document)=>r.querySelector(s);
@@ -137,7 +137,7 @@ function renderToday(T){
   <div class="tools"><div class="seg" id="seg"></div><input id="q" type="search" placeholder="Search strategy…" aria-label="Search strategy"><span class="grow"></span></div>
   <div class="tw"><table id="tbl"></table></div>
   <h2>Trades today <span class="aside">${(T.trades||[]).length} closed</span></h2><div class="tw" id="trades"></div>
-  <p class="note">${esc(T.note||'')} Strategy type is worked out from the ledger: <b>swing</b> = held past the day it opened; <b>selling</b> = only short positions (short futures, sold options); <b>buying</b> = only long positions (long futures, bought calls and puts). Capital = margin estimate plus a safety cushion (“est.” = from the backtest because the strategy has no paper trades yet).</p>`;
+  <p class="note">${esc(T.note||'')} Strategy type is worked out from the ledger: <b>swing</b> = held past the day it opened; <b>selling</b> = short futures only (no strategy sells options); <b>buying</b> = long futures or bought calls / puts; <b>futures long + short</b> = futures on both sides. Each variation (index, futures leg, options leg) is its own row. Capital = margin estimate plus a safety cushion (“est.” = from the backtest because the strategy has no paper trades yet).</p>`;
   const draw=()=>{const q=($('#q').value||'').toLowerCase().replace(/[_\s]+/g,' ');
     const rows=S.filter(s=>(curType==='all'||s.stype===curType)&&(!q||s.strategy.toLowerCase().replace(/_/g,' ').includes(q)));
     const mx=Math.max(1,...rows.map(s=>Math.abs(s.day)));let h='';
