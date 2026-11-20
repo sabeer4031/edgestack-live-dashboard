@@ -120,6 +120,39 @@ function openPnl(s){            // value of the Open P&L cell plus a tag that sa
   if(n.mid)v+=` <span class="pill" title="This option has a bid and ask but has not traded yet; valued at the middle of the two">mid</span>`;
   return v||'–';
 }
+/* 20 Nov 2026: click a strategy row -> its open positions (live price, entry, live P&L, stop, risk) and today's closed trades (entry, exit, net). */
+const px2=x=>x==null||isNaN(x)?'–':NF.format(Math.round(x*100)/100);
+const openSet=new Set();
+function detail(s,T){
+  const o=s.open||[],cl=(T.trades||[]).filter(t=>t.strategy===s.strategy);
+  const stopTxt=p=>p.stop==null?'<span class="faint">none</span>':px2(p.stop)+(p.stop_on==='underlying'?' <span class="faint" title="This option is stopped when its underlying reaches this price, not on the option price">on underlying'+(p.under!=null?` · now ${px2(p.under)}`:'')+'</span>':'');
+  const priceTag=p=>p.price_state==='last'?` <span class="pill" title="Newest price the engine had; the feed is not live now">last ${esc(p.price_asof||'')}</span>`:p.price_state==='mid'?' <span class="pill" title="Bid/ask middle; no trade yet">mid</span>':p.price_state==='none'?' <span class="pill warn" title="'+esc(p.why_unpriced||'')+'">no price</span>':'';
+  let h='<div class="dwrap">';
+  h+=o.length?`<div class="dh">Open positions <span class="muted">${o.length}</span></div><div class="tw2"><table class="dt"><thead><tr><th class="l">Instrument</th><th class="l">Side</th><th>Qty</th><th>Entry</th><th>Live price</th><th>Exit</th><th>Live P&amp;L</th><th>Stop (SL)</th><th>Loss if stop hits</th><th>Since</th></tr></thead><tbody>${o.map(p=>`<tr><td class="l">${esc(p.label?p.instrument+' '+p.label:p.instrument||'')}</td><td class="l"><span class="pill ${p.side==='LONG'?'accent':'warn'}">${esc(p.side)}</span></td><td>${NF.format(p.qty||0)}</td><td>${px2(p.entry)}</td><td>${px2(p.now)}${priceTag(p)}</td><td class="faint">open</td><td class="${tone(p.unrealised)}">${p.unrealised==null?'–':rs(p.unrealised,1)}</td><td>${stopTxt(p)}</td><td title="${esc(p.risk_basis||'')}">${p.risk==null?'<span class="faint">'+(p.side==='SHORT'?'not capped':'–')+'</span>':rs(p.risk)}${p.risk!=null&&p.risk_basis!=='stop'?' <span class="faint">prem.</span>':''}</td><td>${esc((p.since||'').slice(5))}${p.carried?' <span class="pill">carried</span>':''}</td></tr>`).join('')}</tbody></table></div>`:'<div class="faint dh">No open positions.</div>';
+  if(cl.length)h+=`<div class="dh">Closed today <span class="muted">${cl.length}</span></div><div class="tw2"><table class="dt"><thead><tr><th class="l">Instrument</th><th class="l">Side</th><th>In</th><th>Out</th><th>Entry</th><th>Exit</th><th class="l">Why</th><th>Net</th></tr></thead><tbody>${cl.map(t=>`<tr><td class="l">${esc(t.label?t.instrument+' '+t.label:t.instrument||'')}</td><td class="l"><span class="pill ${t.side==='LONG'?'accent':'warn'}">${esc(t.side)}</span></td><td>${esc(t.entry_time)}</td><td>${esc(t.exit_time)}</td><td>${px2(t.entry)}</td><td>${px2(t.exit)}</td><td class="l muted">${esc(t.reason||'')}</td><td class="${tone(t.net)}">${rs(t.net,1)}</td></tr>`).join('')}</tbody></table></div>`;
+  return h+'<div class="dn">Live P&amp;L is before exit charges. Prices refresh about every 2 minutes during market hours. A stop on an option is usually on the underlying, so its rupee loss is shown as the premium paid.</div></div>';
+}
+function riskPanel(S,T){
+  const all=S.flatMap(s=>(s.open||[]).map(p=>({...p,strategy:s.strategy})));if(!all.length)return '';
+  const stopped=all.filter(p=>p.risk_basis==='stop'),prem=all.filter(p=>p.risk!=null&&p.risk_basis!=='stop'),nostop=all.filter(p=>p.risk==null);
+  const sum=a=>a.reduce((x,p)=>x+(p.risk||0),0);
+  const fut=all.filter(p=>!p.is_option&&p.notional);const ex={};fut.forEach(p=>{ex[p.instrument]=(ex[p.instrument]||0)+p.notional*(p.side==='LONG'?1:-1)});
+  const exl=Object.entries(ex).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,6);
+  const bys={};all.forEach(p=>{if(p.risk!=null)bys[p.strategy]=(bys[p.strategy]||0)+p.risk});
+  const top=Object.entries(bys).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const longN=fut.filter(p=>p.side==='LONG').reduce((a,p)=>a+p.notional,0),shortN=fut.filter(p=>p.side==='SHORT').reduce((a,p)=>a+p.notional,0);
+  return `<h2>Risk right now <span class="aside">${all.length} open positions</span></h2>
+  <div class="tiles">${tile('Loss if every stop hits',rs(sum(stopped)),`${stopped.length} positions with a price stop`,'bad')}${tile('Premium at risk',rs(sum(prem)),`${prem.length} bought options (most they can lose)`)}${tile('No stop set',NF.format(nostop.length),nostop.length?'futures held without a stop, and sold options':'every position has a stop or capped risk',nostop.length?'warn':'')}${tile('Futures exposure',rs(longN-shortN,1),`long ${cap(longN)} · short ${cap(shortN)}`)}</div>
+  <div class="two"><div class="card pad"><div class="lbl2">Biggest net futures exposure</div>${exl.length?exl.map(([k,v])=>`<div class="rr"><span>${esc(k)}</span><b class="num">${v>0?'long':'short'} ${cap(Math.abs(v))}</b></div>`).join(''):'<span class="muted">none</span>'}</div>
+  <div class="card pad"><div class="lbl2">Biggest stop / premium risk by strategy</div>${top.length?top.map(([k,v])=>`<div class="rr"><span>${esc(k)}</span><b class="num bad">${rs(v)}</b></div>`).join(''):'<span class="muted">none</span>'}</div></div>`;
+}
+function feedBanner(T,S,stale_){
+  const ist=new Date(Date.now()+(new Date().getTimezoneOffset()+330)*60000),hm=ist.getHours()*60+ist.getMinutes();
+  if(stale_||ist.getDay()%6===0||hm<555||hm>950)return '';   // only while the market feed is expected to be live (09:15-15:50 IST, weekdays)
+  const un=S.reduce((a,s)=>a+(s.open||[]).filter(p=>p.price_state==='none').length,0),ls=S.reduce((a,s)=>a+(s.open||[]).filter(p=>p.price_state==='last').length,0);
+  const msg=[];if(T.marks_age!=null&&T.marks_age>180)msg.push(`the engine’s price file is ${Math.round(T.marks_age/60)} min old`);if(un)msg.push(`${un} open position${un>1?'s have':' has'} no live price`);if(ls)msg.push(`${ls} shown at last known price`);
+  return msg.length?`<div class="banner warn">Feed check: ${esc(msg.join(' · '))}. Unrealised P&amp;L may be off until prices return.</div>`:'';
+}
 function renderToday(T){
   const S=(T.strategies||[]).map(s=>({...s,day:s.net+(s.marked?s.unreal:0)}));
   const IST=new Date(Date.now()+ (new Date().getTimezoneOffset()+330)*60000),todayIso=IST.toISOString().slice(0,10);
@@ -128,13 +161,14 @@ function renderToday(T){
   if(curType!=='all'&&!counts[curType])curType='all';
   const dayTot=T.net+(T.marked?T.unreal:0),dt=new Date(T.date+'T00:00:00');
   const groups=TYPES.map(t=>{const rows=S.filter(s=>s.stype===t.id);return {t,rows,day:rows.reduce((a,s)=>a+s.day,0),cap:rows.reduce((a,s)=>a+(s.capital||0),0),n:rows.length,closed:rows.reduce((a,s)=>a+s.closed,0),open:rows.reduce((a,s)=>a+(s.open||[]).length,0)}}).filter(g=>g.n);
-  $('#main').innerHTML=`
+  $('#main').innerHTML=`${feedBanner(T,S,stale)}
   <div class="hero"><div><div class="lbl">${esc(dt.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'}))}${stale?' · last session':''}</div><div class="big ${tone(dayTot)}">${rs(dayTot,1)}</div><div class="muted" style="margin-top:4px">Day so far: booked + open positions at live prices</div></div>
    <div class="side"><div><span class="lbl">Booked</span><b class="${tone(T.net)}">${rs(T.net,1)}</b></div><div><span class="lbl">Open, priced</span><b class="${tone(T.unreal)}">${T.marked?rs(T.unreal,1):'n/a'}</b></div><div><span class="lbl">Charges</span><b>${rs(T.costs)}</b></div></div></div>
   <div class="tiles">${tile('Closed positions',NF.format(T.closed),`${S.filter(s=>s.closed).length} strategies traded`)}${tile('Open positions',NF.format(T.open_total),T.open_total?`${T.marked} of ${T.open_total} priced${S.reduce((a,s)=>a+(s.open||[]).filter(p=>p.price_state==='last').length,0)?' · some at last price':''}`:'none open')}${tile('Capital behind today',cap(T.capital_total),'sum of each strategy’s own need; they rarely peak together')}${tile('Strategies active',NF.format(S.length),groups.map(g=>g.t.short+' '+g.n).join(' · '))}</div>
+  ${riskPanel(S,T)}
   <h2>By strategy type <span class="aside">click a card to filter</span></h2>
   <div class="types">${groups.map(g=>`<button class="tcard ${curType===g.t.id?'on':''}" data-t="${g.t.id}" style="--tc:${g.t.color}"><div class="n">${esc(g.t.label)}<small>${g.n} strateg${g.n>1?'ies':'y'}</small></div><div class="pl ${tone(g.day)}">${rs(g.day,1)}</div><div class="meta">${g.closed} closed · ${g.open} open · capital ${cap(g.cap)}</div></button>`).join('')}</div>
-  <div class="tools"><div class="seg" id="seg"></div><input id="q" type="search" placeholder="Search strategy…" aria-label="Search strategy"><span class="grow"></span></div>
+  <div class="tools"><div class="seg" id="seg"></div><input id="q" type="search" placeholder="Search strategy…" aria-label="Search strategy"><span class="grow"></span><span class="muted" style="font-size:12px">click a row for its positions</span></div>
   <div class="tw"><table id="tbl"></table></div>
   <h2>Trades today <span class="aside">${(T.trades||[]).length} closed</span></h2><div class="tw" id="trades"></div>
   <p class="note">${esc(T.note||'')} Strategy type is worked out from the ledger: <b>swing</b> = held past the day it opened; <b>selling</b> = short futures only (no strategy sells options); <b>buying</b> = long futures or bought calls / puts; <b>futures long + short</b> = futures on both sides. Each variation (index, futures leg, options leg) is its own row. Capital = margin estimate plus a safety cushion (“est.” = from the backtest because the strategy has no paper trades yet).</p>`;
@@ -144,11 +178,12 @@ function renderToday(T){
     TYPES.forEach(t=>{const rs_=rows.filter(s=>s.stype===t.id).sort((a,b)=>b.day-a.day);if(!rs_.length)return;
       const sub=rs_.reduce((a,s)=>a+s.day,0);
       h+=`<tr class="grp"><td class="l" colspan="2"><span class="gl"><span class="sd" style="width:9px;height:9px;border-radius:3px;background:${t.color}"></span>${esc(t.label)} <span class="muted" style="font-weight:450">${rs_.length}</span></span></td><td></td><td></td><td></td><td></td><td class="${tone(sub)}">${rs(sub,1)}</td></tr>`;
-      rs_.forEach(s=>{const o=(s.open||[]).length;h+=`<tr class="row"><td class="l"><div class="sname" style="--tc:${t.color}"><span class="sd"></span><span>${esc(s.strategy)}</span></div></td>
+      rs_.forEach(s=>{const o=(s.open||[]).length,isOpen=openSet.has(s.strategy),hasD=o||s.closed;h+=`<tr class="row ${hasD?'xrow':''} ${isOpen?'isopen':''}" data-s="${esc(s.strategy)}"><td class="l"><div class="sname" style="--tc:${t.color}"><span class="caret">${hasD?(isOpen?'▾':'▸'):''}</span><span class="sd"></span><span>${esc(s.strategy)}</span></div></td>
        <td>${s.capital?cap(s.capital)+(s.capital_basis==='estimate'?' <span class="faint">est.</span>':''):'–'}</td><td>${s.closed||'–'}</td><td class="${tone(s.net)}">${s.closed?rs(s.net,1):'–'}</td>
        <td>${o||'–'}</td><td>${openPnl(s)}</td>
-       <td class="${tone(s.day)}" style="font-weight:650">${(s.closed||s.marked)?rs(s.day,1):'–'}<i class="bar" style="width:${Math.abs(s.day)/mx*70}px;background:var(--${s.day>=0?'good':'bad'});opacity:.7"></i></td></tr>`})});
-    $('#tbl').innerHTML=`<thead><tr><th class="l">Strategy</th><th>Capital</th><th>Closed</th><th>Booked</th><th>Open</th><th>Open P&amp;L</th><th>Day so far</th></tr></thead><tbody>${h||'<tr><td class="l" colspan="7"><div class="empty">No strategies match.</div></td></tr>'}</tbody>`};
+       <td class="${tone(s.day)}" style="font-weight:650">${(s.closed||s.marked)?rs(s.day,1):'–'}<i class="bar" style="width:${Math.abs(s.day)/mx*70}px;background:var(--${s.day>=0?'good':'bad'});opacity:.7"></i></td></tr>`+(isOpen&&hasD?`<tr class="det"><td colspan="7" class="l">${detail(s,T)}</td></tr>`:'')})});
+    $('#tbl').innerHTML=`<thead><tr><th class="l">Strategy</th><th>Capital</th><th>Closed</th><th>Booked</th><th>Open</th><th>Open P&amp;L</th><th>Day so far</th></tr></thead><tbody>${h||'<tr><td class="l" colspan="7"><div class="empty">No strategies match.</div></td></tr>'}</tbody>`;
+    $('#tbl').querySelectorAll('tr.xrow').forEach(r=>r.onclick=()=>{const k=r.dataset.s;openSet.has(k)?openSet.delete(k):openSet.add(k);draw()})};
   seg($('#seg'),typeOpts(counts),curType,v=>{curType=v;store.set('edge_type',v);draw();document.querySelectorAll('.tcard').forEach(c=>c.classList.toggle('on',c.dataset.t===v))});
   document.querySelectorAll('.tcard').forEach(c=>c.onclick=()=>{const v=curType===c.dataset.t?'all':c.dataset.t;curType=v;store.set('edge_type',v);document.querySelectorAll('.tcard').forEach(x=>x.classList.toggle('on',x.dataset.t===v));seg($('#seg'),typeOpts(counts),v,x=>{curType=x;store.set('edge_type',x);draw();document.querySelectorAll('.tcard').forEach(y=>y.classList.toggle('on',y.dataset.t===x))});draw()});
   $('#q').oninput=draw;draw();
@@ -157,6 +192,21 @@ function renderToday(T){
 }
 
 /* ---------- OVERALL ---------- */
+/* 20 Nov 2026: per-strategy curve, drawdown, graduation progress and futures-vs-option twins (all from the existing overall payload) */
+function cumOf(s){let c=0;return (s.daily||[]).map(d=>c+=d[1])}
+function ddOf(s){let pk=0,mdd=0;cumOf(s).forEach(c=>{pk=Math.max(pk,c);mdd=Math.min(mdd,c-pk)});return mdd}
+function spark(s){const c=cumOf(s);if(c.length<2)return '<span class="faint">–</span>';const W=70,H=22,lo=Math.min(0,...c),hi=Math.max(0,...c),r=(hi-lo)||1;
+  const pts=c.map((v,i)=>(i*(W-2)/(c.length-1)+1).toFixed(1)+','+(H-2-(v-lo)/r*(H-4)).toFixed(1)).join(' ');
+  return `<svg class="spark" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><line x1="0" x2="${W}" y1="${(H-2-(0-lo)/r*(H-4)).toFixed(1)}" y2="${(H-2-(0-lo)/r*(H-4)).toFixed(1)}" stroke="var(--line)"/><polyline points="${pts}" fill="none" stroke="var(--${c[c.length-1]>=0?'good':'bad'})" stroke-width="1.6"/></svg>`}
+function grad(s){const a=Math.min(1,(s.positions||0)/60),b=Math.min(1,(s.days||0)/20),pf=s.pf,ok=a>=1&&b>=1&&pf!=null&&pf>=1.2;
+  const bar=(f,l,t)=>`<span title="${t}"><span class="prog"><i style="width:${Math.round(f*100)}%"></i></span>${l}</span>`;
+  return `<span class="grad">${bar(a,(s.positions||0)+'/60','positions')} ${bar(b,(s.days||0)+'/20','sessions')} <span class="pill ${ok?'good':pf!=null&&pf<1?'bad':''}" title="profit factor, bar is 1.2">PF ${pf==null?'–':pf}</span></span>`}
+const twinKey=n=>n.replace(/_(OPTIONS|CALLS|OPT)(?=( ·|$))/,'').replace(/ (futures|options)$/,'');
+const isOptName=n=>/_(OPTIONS|CALLS|OPT)( ·|$)/.test(n)||/ options$/.test(n);
+function twins(S){const m={};S.forEach(s=>{(m[twinKey(s.strategy)]=m[twinKey(s.strategy)]||{})[isOptName(s.strategy)?'o':'f']=s});
+  const P=Object.entries(m).filter(([k,v])=>v.f&&v.o&&(v.f.positions||v.o.positions));if(!P.length)return '';
+  const cell=s=>`<td>${s.positions}</td><td>${s.win_pct==null?'–':pct(s.win_pct,0)}</td><td>${s.pf==null?'–':s.pf}</td><td class="${tone(s.net)}">${rs(s.net,1)}</td><td>${rs(ddOf(s))}</td><td>${rs(s.costs)}</td>`;
+  return `<h2>Futures vs option twins <span class="aside">same signal, traded two ways</span></h2><div class="tw"><table><thead><tr><th class="l">Signal</th><th colspan="6" style="text-align:center;border-left:1px solid var(--line)">Futures</th><th colspan="6" style="text-align:center;border-left:1px solid var(--line)">Bought option</th><th>Option ÷ futures net</th></tr><tr><th class="l"></th>${'<th>Pos</th><th>Win</th><th>PF</th><th>Net</th><th>Max DD</th><th>Charges</th>'.repeat(2)}<th></th></tr></thead><tbody>${P.map(([k,v])=>`<tr class="row"><td class="l"><b>${esc(k)}</b></td>${cell(v.f)}${cell(v.o)}<td>${v.f.net>0?Math.round(100*v.o.net/v.f.net)+'%':'–'}</td></tr>`).join('')}</tbody></table></div>`}
 let sortK='net',sortD=-1;
 function renderOverall(O){
   stale=false;asofTxt='through '+O.data_through;
@@ -175,17 +225,18 @@ function renderOverall(O){
   <h2>Cumulative P&amp;L <span class="aside">hover for the day</span></h2><div id="ch">${chart(ser)}</div>
   <div class="types" style="margin-top:14px">${groups.map(g=>`<div class="tcard" style="--tc:${g.t.color}"><div class="n">${esc(g.t.label)}<small>${g.rows.length} strateg${g.rows.length>1?'ies':'y'}</small></div><div class="pl ${tone(g.net)}">${rs(g.net,1)}</div><div class="meta">${NF.format(g.pos)} positions · capital ${cap(g.cap)}</div></div>`).join('')}</div>
   <h2>By month</h2>${monthBars(ser)}
+  ${twins(S)}
   <h2>Strategy league table <span class="aside">click a column to sort</span></h2>
   <div class="tools"><div class="seg" id="seg"></div><input id="q" type="search" placeholder="Search strategy…" aria-label="Search strategy"></div>
   <div class="tw"><table id="tbl"></table></div>
   <p class="note">${esc(O.note||'')} Return on capital = net P&amp;L ÷ the strategy’s capital need (margin estimate plus cushion). With a few sessions these numbers are small samples: they show execution and costs, not a ranking to trade on.</p>`;
   wireChart($('#ch'),ser);
-  const COLS=[['strategy','Strategy','l'],['stype','Type','l'],['capital','Capital'],['positions','Positions'],['win_pct','Win %'],['pf','PF'],['net','Net P&L'],['roc','Return on capital'],['costs','Charges'],['days','Sessions'],['best_day','Best day'],['worst_day','Worst day']];
-  const val=(s,k)=>k==='roc'?(s.capital?s.net/s.capital*100:null):k==='stype'?(TYPE[s.stype]||{}).short:s[k];
+  const COLS=[['strategy','Strategy','l'],['stype','Type','l'],['capital','Capital'],['positions','Positions'],['win_pct','Win %'],['pf','PF'],['net','Net P&L'],['curve','Curve'],['dd','Max drawdown'],['roc','Return on capital'],['costs','Charges'],['days','Sessions'],['best_day','Best day'],['worst_day','Worst day'],['grad','Graduation (60 pos · 20 sessions · PF 1.2)']];
+  const val=(s,k)=>k==='dd'?ddOf(s):k==='curve'?cumOf(s).length:k==='grad'?Math.min(1,(s.positions||0)/60)+Math.min(1,(s.days||0)/20):k==='roc'?(s.capital?s.net/s.capital*100:null):k==='stype'?(TYPE[s.stype]||{}).short:s[k];
   const draw=()=>{const q=($('#q').value||'').toLowerCase().replace(/[_\s]+/g,' ');
     const rows=S.filter(s=>(curType==='all'||s.stype===curType)&&(!q||s.strategy.toLowerCase().replace(/_/g,' ').includes(q))).sort((a,b)=>{const x=val(a,sortK),y=val(b,sortK);if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;return (x<y?-1:x>y?1:0)*sortD});
     $('#tbl').innerHTML=`<thead><tr>${COLS.map(c=>`<th class="sortable ${c[2]||''}" data-k="${c[0]}">${c[1]}${sortK===c[0]?(sortD<0?' ▾':' ▴'):''}</th>`).join('')}</tr></thead><tbody>${rows.map(s=>{const t=typeOf(s),roc=val(s,'roc');return `<tr class="row"><td class="l"><div class="sname" style="--tc:${t.color}"><span class="sd"></span><span>${esc(s.strategy)}${s.status&&s.status!=='running'?`<small>${esc(s.status)}</small>`:''}</span></div></td><td class="l">${tpill(s)}</td>
-      <td>${s.capital?cap(s.capital)+(s.capital_basis==='estimate'?' <span class="faint">est.</span>':''):'–'}</td><td>${s.positions}</td><td>${s.win_pct==null?'–':pct(s.win_pct,0)}</td><td>${s.pf==null?'–':s.pf}</td><td class="${tone(s.net)}" style="font-weight:650">${rs(s.net,1)}</td><td class="${tone(roc)}">${roc==null?'–':(roc>0?'+':'')+roc.toFixed(1)+'%'}</td><td>${rs(s.costs)}</td><td>${s.days} <span class="faint">(${s.pos_days}+)</span></td><td class="good">${rs(s.best_day)}</td><td class="bad">${rs(s.worst_day)}</td></tr>`}).join('')||'<tr><td class="l" colspan="12"><div class="empty">No strategies match.</div></td></tr>'}</tbody>`;
+      <td>${s.capital?cap(s.capital)+(s.capital_basis==='estimate'?' <span class="faint">est.</span>':''):'–'}</td><td>${s.positions}</td><td>${s.win_pct==null?'–':pct(s.win_pct,0)}</td><td>${s.pf==null?'–':s.pf}</td><td class="${tone(s.net)}" style="font-weight:650">${rs(s.net,1)}</td><td>${spark(s)}</td><td class="bad">${rs(ddOf(s))}</td><td class="${tone(roc)}">${roc==null?'–':(roc>0?'+':'')+roc.toFixed(1)+'%'}</td><td>${rs(s.costs)}</td><td>${s.days} <span class="faint">(${s.pos_days}+)</span></td><td class="good">${rs(s.best_day)}</td><td class="bad">${rs(s.worst_day)}</td><td>${grad(s)}</td></tr>`}).join('')||'<tr><td class="l" colspan="15"><div class="empty">No strategies match.</div></td></tr>'}</tbody>`;
     $('#tbl').querySelectorAll('th.sortable').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortK===k)sortD=-sortD;else{sortK=k;sortD=(k==='strategy'||k==='stype')?1:-1}draw()})};
   seg($('#seg'),typeOpts(counts),curType,v=>{curType=v;store.set('edge_type',v);draw()});$('#q').oninput=draw;draw();
 }

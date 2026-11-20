@@ -122,4 +122,17 @@ tbody tr.row:hover td{background:var(--surface2)}
 .err{color:var(--bad);min-height:20px;margin-top:8px}
 .note{color:var(--muted);font-size:12px;max-width:90ch;margin-top:18px}
 .empty{padding:28px;text-align:center;color:var(--muted)}
+/* 20 Nov 2026: expandable strategy rows, risk panel, banners, overall extras */
+tr.xrow{cursor:pointer}tr.xrow.isopen td{background:var(--surface2)}
+.caret{width:12px;color:var(--faint);font-size:11px;flex:none}
+tr.det>td{padding:0;background:var(--surface2);white-space:normal}
+.dwrap{padding:10px 14px 14px;display:grid;gap:8px;max-width:100%;overflow-x:auto}
+.dh{font-weight:650;font-size:12.5px}.tw2{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table.dt{font-size:12.5px}table.dt th{position:static}.dn{font-size:11.5px;color:var(--muted)}
+.banner{border-radius:10px;padding:9px 13px;margin-bottom:14px;font-size:13px}.banner.warn{background:var(--warn-soft);color:var(--warn);border:1px solid var(--line)}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.lbl2{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.rr{display:flex;justify-content:space-between;gap:10px;padding:3px 0;border-bottom:1px solid var(--line2);font-size:13px}.rr:last-child{border-bottom:0}
+.prog{display:inline-block;width:64px;height:6px;border-radius:3px;background:var(--line);vertical-align:middle;overflow:hidden;margin-right:6px}.prog i{display:block;height:100%;background:var(--accent)}
+.spark{vertical-align:middle}
 @media (max-width:640px){.hero .side{gap:18px}.nav a{padding:5px 9px}.top-in{gap:8px}td,th{padding:8px 9px}.top-r{margin-left:0;width:100%}.top-r .chip{flex:1}.tile .v{font-size:19px}.types{grid-template-columns:1fr}}
