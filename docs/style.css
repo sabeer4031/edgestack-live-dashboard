@@ -136,3 +136,5 @@ table.dt{font-size:12.5px}table.dt th{position:static}.dn{font-size:11.5px;color
 .prog{display:inline-block;width:64px;height:6px;border-radius:3px;background:var(--line);vertical-align:middle;overflow:hidden;margin-right:6px}.prog i{display:block;height:100%;background:var(--accent)}
 .spark{vertical-align:middle}
 @media (max-width:640px){.hero .side{gap:18px}.nav a{padding:5px 9px}.top-in{gap:8px}td,th{padding:8px 9px}.top-r{margin-left:0;width:100%}.top-r .chip{flex:1}.tile .v{font-size:19px}.types{grid-template-columns:1fr}}
+
+.nosl{color:var(--muted);font-style:italic;font-family:var(--sans)}
