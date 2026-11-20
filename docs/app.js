@@ -25,7 +25,7 @@ const ICON={sun:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" str
   logo:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-9"/></svg>'};
 function shell(on){
   document.body.innerHTML=`<header class="top"><div class="top-in"><a class="brand" href="index.html"><span class="logo">${ICON.logo}</span>EdgeStack <span class="muted" style="font-weight:500">paper book</span></a>
-  <nav class="nav" aria-label="Pages">${[['index.html','Today','today'],['overall.html','Overall','overall'],['strategies.html','Strategies','strategies']].map(n=>`<a href="${n[0]}" class="${on===n[2]?'on':''}">${n[1]}</a>`).join('')}</nav>
+  <nav class="nav" aria-label="Pages">${[['index.html','Today','today'],['overall.html','Overall','overall'],['trades.html','Trades','trades'],['strategies.html','Strategies','strategies']].map(n=>`<a href="${n[0]}" class="${on===n[2]?'on':''}">${n[1]}</a>`).join('')}</nav>
   <div class="top-r"><span class="chip" id="status"><i class="dot" id="dot"></i><span id="stxt">connecting…</span></span>
   <button class="ibtn" id="rf" title="Refresh now" aria-label="Refresh now">${ICON.refresh}</button><button class="ibtn" id="th" title="Light / dark" aria-label="Toggle theme">${ICON.sun}</button></div></div></header>
   <main id="main"></main>`;
@@ -63,8 +63,8 @@ async function load(force){
   render(data);lastOk=Date.now();tickStatus();
 }
 function boot(p){
-  page=p;kind=p==='today'?'today':'overall';shell(p);
-  render=p==='today'?renderToday:p==='overall'?renderOverall:renderStrategies;
+  page=p;kind=p==='today'?'today':p==='trades'?'trades':'overall';shell(p);
+  render=p==='today'?renderToday:p==='overall'?renderOverall:p==='trades'?renderTrades:renderStrategies;
   load(true);clearInterval(timer);timer=setInterval(()=>{if(pass&&!document.hidden)load(false)},kind==='today'?60000:300000);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden&&pass)load(false)});
 }
@@ -229,7 +229,7 @@ function trTable(host){
   const strats=[...new Set(all.map(r=>r[ix.strategy]))].sort();
   const days=all.map(r=>r[ix.day]);const mn=days[0],mx=days[days.length-1];
   const filt=()=>{const q=trF.q.toLowerCase();return all.filter(r=>(!trF.s||r[ix.strategy]===trF.s)&&(!trF.from||r[ix.day]>=trF.from)&&(!trF.to||r[ix.day]<=trF.to)&&(trF.res==='all'||(trF.res==='win'?r[ix.net]>0:r[ix.net]<=0))&&(!q||(r[ix.strategy]+' '+r[ix.instrument]+' '+(r[ix.label]||'')+' '+(r[ix.reason]||'')).toLowerCase().includes(q)))};
-  const COLS=[['day','Date','l'],['strategy','Strategy','l'],['instrument','Instrument','l'],['side','Side','l'],['t_in','In'],['t_out','Out'],['entry','Entry'],['exit','Exit'],['stop','Stop (SL)'],['reason','Why','l'],['charges','Charges'],['net','Net']];
+  const COLS=[['strategy','Strategy','l'],['day','Date','l'],['instrument','Instrument','l'],['side','Side','l'],['t_in','In'],['t_out','Out'],['entry','Entry'],['exit','Exit'],['stop','Stop (SL)'],['reason','Why','l'],['charges','Charges'],['net','Net']];
   const draw=()=>{
     const rows=filt().sort((a,b)=>{const x=a[ix[trF.k]],y=b[ix[trF.k]];if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;const c=x<y?-1:x>y?1:0;return (c||(a[ix.t_out]<b[ix.t_out]?-1:1))*trF.d});
     const n=rows.length,pages=Math.max(1,Math.ceil(n/TRPAGE));trF.pg=Math.min(trF.pg,pages-1);
@@ -237,7 +237,7 @@ function trTable(host){
     host.querySelector('#trcost').innerHTML=costSplit(P,trF.s);
     host.querySelector('#trsum').innerHTML=`<b>${NF.format(n)}</b> trades · net <b class="${tone(net)}">${rs(net,1)}</b> · charges ${rs(ch)} · win ${n?Math.round(100*w.length/n):0}% · PF ${gl>0?(gw/gl).toFixed(2):'–'}`;
     const pg=rows.slice(trF.pg*TRPAGE,(trF.pg+1)*TRPAGE);
-    host.querySelector('#trtbl').innerHTML=`<thead><tr>${COLS.map(c=>`<th class="sortable ${c[2]||''}" data-k="${c[0]}">${c[1]}${trF.k===c[0]?(trF.d<0?' ▾':' ▴'):''}</th>`).join('')}</tr></thead><tbody>${pg.map(r=>`<tr class="row"><td class="l">${esc(r[ix.day])}</td><td class="l">${esc(r[ix.strategy])}</td><td class="l">${esc(r[ix.label]?r[ix.instrument]+' '+r[ix.label]:r[ix.instrument]||'')}</td><td class="l"><span class="pill ${r[ix.side]==='LONG'?'accent':'warn'}">${esc(r[ix.side])}</span></td><td>${esc(r[ix.t_in])}${r[ix.d_in]&&r[ix.d_in]!==r[ix.day]?' <span class="faint">'+esc(r[ix.d_in].slice(5))+'</span>':''}</td><td>${esc(r[ix.t_out])}</td><td>${px2(r[ix.entry])}</td><td>${px2(r[ix.exit])}</td><td>${slTxt({stop:r[ix.stop],stop_on:r[ix.stop_on]})}</td><td class="l muted">${esc(r[ix.reason]||'')}</td><td>${rs(r[ix.charges])}</td><td class="${tone(r[ix.net])}">${rs(r[ix.net],1)}</td></tr>`).join('')||'<tr><td class="l" colspan="12"><div class="empty">No trades match.</div></td></tr>'}</tbody>`;
+    host.querySelector('#trtbl').innerHTML=`<thead><tr>${COLS.map(c=>`<th class="sortable ${c[2]||''}" data-k="${c[0]}">${c[1]}${trF.k===c[0]?(trF.d<0?' ▾':' ▴'):''}</th>`).join('')}</tr></thead><tbody>${pg.map(r=>`<tr class="row"><td class="l"><b>${esc(r[ix.strategy])}</b></td><td class="l">${esc(r[ix.day])}</td><td class="l">${esc(r[ix.label]?r[ix.instrument]+' '+r[ix.label]:r[ix.instrument]||'')}</td><td class="l"><span class="pill ${r[ix.side]==='LONG'?'accent':'warn'}">${esc(r[ix.side])}</span></td><td>${esc(r[ix.t_in])}${r[ix.d_in]&&r[ix.d_in]!==r[ix.day]?' <span class="faint">'+esc(r[ix.d_in].slice(5))+'</span>':''}</td><td>${esc(r[ix.t_out])}</td><td>${px2(r[ix.entry])}</td><td>${px2(r[ix.exit])}</td><td>${slTxt({stop:r[ix.stop],stop_on:r[ix.stop_on]})}</td><td class="l muted">${esc(r[ix.reason]||'')}</td><td>${rs(r[ix.charges])}</td><td class="${tone(r[ix.net])}">${rs(r[ix.net],1)}</td></tr>`).join('')||'<tr><td class="l" colspan="12"><div class="empty">No trades match.</div></td></tr>'}</tbody>`;
     host.querySelector('#trpg').innerHTML=`<button ${trF.pg?'':'disabled'} id="trp">‹ Prev</button><span class="muted">page ${trF.pg+1} of ${pages}</span><button ${trF.pg<pages-1?'':'disabled'} id="trn">Next ›</button>`;
     host.querySelector('#trp').onclick=()=>{trF.pg--;draw()};host.querySelector('#trn').onclick=()=>{trF.pg++;draw()};
     host.querySelectorAll('#trtbl th.sortable').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(trF.k===k)trF.d=-trF.d;else{trF.k=k;trF.d=(k==='day'||k==='net'||k==='charges')?-1:1}trF.pg=0;draw()});
@@ -264,6 +264,11 @@ function stratDetail(s){const ser=[];let c=0;(s.daily||[]).forEach(d=>{c+=d[1];s
   const tr=TR?TR.rows.filter(r=>r[TR.cols.indexOf('strategy')]===s.strategy).slice(-15).reverse():null;const ix=TR?Object.fromEntries(TR.cols.map((x,i)=>[x,i])):null;
   return `<div class="dwrap"><div class="dh">${esc(s.strategy)} · ${s.positions} positions · ${s.days} sessions</div>${chart(ser,{h:170})}${ser.length>1?monthBars(ser):''}
   ${TR?`<div class="dh">Where the charges went</div>${costSplit(TR,s.strategy)}<div class="dh">Latest trades</div><div class="tw2"><table class="dt"><thead><tr><th class="l">Date</th><th class="l">Instrument</th><th class="l">Side</th><th>Entry</th><th>Exit</th><th>Stop (SL)</th><th class="l">Why</th><th>Net</th></tr></thead><tbody>${tr.map(r=>`<tr><td class="l">${esc(r[ix.day])}</td><td class="l">${esc(r[ix.label]?r[ix.instrument]+' '+r[ix.label]:r[ix.instrument]||'')}</td><td class="l">${esc(r[ix.side])}</td><td>${px2(r[ix.entry])}</td><td>${px2(r[ix.exit])}</td><td>${slTxt({stop:r[ix.stop],stop_on:r[ix.stop_on]})}</td><td class="l muted">${esc(r[ix.reason]||'')}</td><td class="${tone(r[ix.net])}">${rs(r[ix.net],1)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="dn">Open “All trades” below once to see this strategy’s charges and latest trades here.</div>'}</div>`}
+function renderTrades(P){
+  TR=P;stale=false;asofTxt='through '+P.through;
+  $('#main').innerHTML=`<h1>All trades</h1><p class="sub">Every closed paper trade, ${NF.format(P.n)} rows through ${esc(P.through)}. Filter, sort (click a column) and download.</p><div id="trbox"></div>`;
+  trTable($('#trbox'));
+}
 let sortK='net',sortD=-1;
 function renderOverall(O){
   stale=false;asofTxt='through '+O.data_through;
@@ -287,7 +292,7 @@ function renderOverall(O){
   <h2>Strategy league table <span class="aside">click a column to sort, click a row for its curve, months and trades</span></h2>
   <div class="tools"><div class="seg" id="seg"></div><input id="q" type="search" placeholder="Search strategy…" aria-label="Search strategy"></div>
   <div class="tw"><table id="tbl"></table></div>
-  <h2>All trades <span class="aside">every closed paper trade, filter and download</span></h2><div id="trbox"><button class="ibtn wide" id="trload">Load all trades</button></div>
+  <h2>All trades <span class="aside">every closed paper trade, filter and download</span></h2><div id="trbox"><a class="ibtn wide" href="trades.html" style="text-decoration:none">Open the All trades page →</a> <button class="ibtn wide" id="trload">Or load it here</button></div>
   <p class="note">${esc(O.note||'')} Return on capital = net P&amp;L ÷ the strategy’s capital need (margin estimate plus cushion). With a few sessions these numbers are small samples: they show execution and costs, not a ranking to trade on.</p>`;
   wireChart($('#ch'),ser);
   const COLS=[['strategy','Strategy','l'],['stype','Type','l'],['capital','Capital'],['positions','Positions'],['win_pct','Win %'],['pf','PF'],['net','Net P&L'],['curve','Curve'],['dd','Max drawdown'],['roc','Return on capital'],['costs','Charges'],['days','Sessions'],['best_day','Best day'],['worst_day','Worst day'],['grad','Graduation (60 pos · 20 sessions · PF 1.2)']];
