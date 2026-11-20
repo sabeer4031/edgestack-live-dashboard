@@ -138,3 +138,7 @@ table.dt{font-size:12.5px}table.dt th{position:static}.dn{font-size:11.5px;color
 @media (max-width:640px){.hero .side{gap:18px}.nav a{padding:5px 9px}.top-in{gap:8px}td,th{padding:8px 9px}.top-r{margin-left:0;width:100%}.top-r .chip{flex:1}.tile .v{font-size:19px}.types{grid-template-columns:1fr}}
 
 .nosl{color:var(--muted);font-style:italic;font-family:var(--sans)}
+
+.ibtn.wide{width:auto;padding:0 12px;height:32px;display:inline-flex;align-items:center;font-size:13px;font-weight:550}
+.tools select,.tools input[type=date]{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:6px 9px;font:inherit;max-width:100%}
+.pager{display:flex;gap:12px;align-items:center;justify-content:center;margin:10px 0}.pager button{border:1px solid var(--line);background:var(--surface);border-radius:9px;padding:5px 12px}.pager button:disabled{opacity:.4;cursor:default}

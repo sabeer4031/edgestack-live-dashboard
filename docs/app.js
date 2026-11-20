@@ -1,7 +1,7 @@
 /* EdgeStack paper book -- shared logic and the three pages (31 Oct 2026 redesign). No dependencies. Data is AES-GCM encrypted on GitHub and decrypted in the browser with the passphrase. */
 const Edge=(()=>{
 const REPO='sabeer4031/edgestack-live-dashboard';
-const FILES={today:'today.enc.json',overall:'overall.enc.json'};
+const FILES={today:'today.enc.json',overall:'overall.enc.json',trades:'trades.enc.json'};
 const TYPES=[
   {id:'buy',label:'Intraday buying',short:'Buying',color:'var(--t-buy)',help:'Long futures or bought calls / puts, flat the same day'},
   {id:'sell',label:'Intraday selling (short futures)',short:'Short futures',color:'var(--t-sell)',help:'Short futures only (no option is ever sold), flat the same day'},
@@ -208,6 +208,37 @@ function twins(S){const m={};S.forEach(s=>{(m[twinKey(s.strategy)]=m[twinKey(s.s
   const P=Object.entries(m).filter(([k,v])=>v.f&&v.o&&(v.f.positions||v.o.positions));if(!P.length)return '';
   const cell=s=>`<td>${s.positions}</td><td>${s.win_pct==null?'–':pct(s.win_pct,0)}</td><td>${s.pf==null?'–':s.pf}</td><td class="${tone(s.net)}">${rs(s.net,1)}</td><td>${rs(ddOf(s))}</td><td>${rs(s.costs)}</td>`;
   return `<h2>Futures vs option twins <span class="aside">same signal, traded two ways</span></h2><div class="tw"><table><thead><tr><th class="l">Signal</th><th colspan="6" style="text-align:center;border-left:1px solid var(--line)">Futures</th><th colspan="6" style="text-align:center;border-left:1px solid var(--line)">Bought option</th><th>Option ÷ futures net</th></tr><tr><th class="l"></th>${'<th>Pos</th><th>Win</th><th>PF</th><th>Net</th><th>Max DD</th><th>Charges</th>'.repeat(2)}<th></th></tr></thead><tbody>${P.map(([k,v])=>`<tr class="row"><td class="l"><b>${esc(k)}</b></td>${cell(v.f)}${cell(v.o)}<td>${v.f.net>0?Math.round(100*v.o.net/v.f.net)+'%':'–'}</td></tr>`).join('')}</tbody></table></div>`}
+/* 21 Nov 2026: ALL TRADES table (every closed paper trade; loaded and decrypted only when the section is opened) */
+let TR=null;const trF={s:'',from:'',to:'',res:'all',q:'',k:'day',d:-1,pg:0},TRPAGE=100;
+async function loadTrades(){
+  if(TR)return TR;
+  const dev=store.get('edge_dev_trades');if(dev){TR=JSON.parse(dev);return TR}
+  const r=await fetch(`https://raw.githubusercontent.com/${REPO}/data/${FILES.trades}?t=${Math.floor(Date.now()/30000)}`,{cache:'no-store'});if(!r.ok)throw new Error('trades file not found yet ('+r.status+')');
+  TR=await decrypt(await r.json(),pass);return TR;
+}
+function trTable(host){
+  const P=TR,ix=Object.fromEntries(P.cols.map((c,i)=>[c,i])),all=P.rows;
+  const strats=[...new Set(all.map(r=>r[ix.strategy]))].sort();
+  const days=all.map(r=>r[ix.day]);const mn=days[0],mx=days[days.length-1];
+  const filt=()=>{const q=trF.q.toLowerCase();return all.filter(r=>(!trF.s||r[ix.strategy]===trF.s)&&(!trF.from||r[ix.day]>=trF.from)&&(!trF.to||r[ix.day]<=trF.to)&&(trF.res==='all'||(trF.res==='win'?r[ix.net]>0:r[ix.net]<=0))&&(!q||(r[ix.strategy]+' '+r[ix.instrument]+' '+(r[ix.label]||'')+' '+(r[ix.reason]||'')).toLowerCase().includes(q)))};
+  const COLS=[['day','Date','l'],['strategy','Strategy','l'],['instrument','Instrument','l'],['side','Side','l'],['t_in','In'],['t_out','Out'],['entry','Entry'],['exit','Exit'],['stop','Stop (SL)'],['reason','Why','l'],['charges','Charges'],['net','Net']];
+  const draw=()=>{
+    const rows=filt().sort((a,b)=>{const x=a[ix[trF.k]],y=b[ix[trF.k]];if(x==null&&y==null)return 0;if(x==null)return 1;if(y==null)return -1;const c=x<y?-1:x>y?1:0;return (c||(a[ix.t_out]<b[ix.t_out]?-1:1))*trF.d});
+    const n=rows.length,pages=Math.max(1,Math.ceil(n/TRPAGE));trF.pg=Math.min(trF.pg,pages-1);
+    const net=rows.reduce((a,r)=>a+r[ix.net],0),ch=rows.reduce((a,r)=>a+r[ix.charges],0),w=rows.filter(r=>r[ix.net]>0),gw=w.reduce((a,r)=>a+r[ix.net],0),gl=rows.filter(r=>r[ix.net]<=0).reduce((a,r)=>a-r[ix.net],0);
+    host.querySelector('#trsum').innerHTML=`<b>${NF.format(n)}</b> trades · net <b class="${tone(net)}">${rs(net,1)}</b> · charges ${rs(ch)} · win ${n?Math.round(100*w.length/n):0}% · PF ${gl>0?(gw/gl).toFixed(2):'–'}`;
+    const pg=rows.slice(trF.pg*TRPAGE,(trF.pg+1)*TRPAGE);
+    host.querySelector('#trtbl').innerHTML=`<thead><tr>${COLS.map(c=>`<th class="sortable ${c[2]||''}" data-k="${c[0]}">${c[1]}${trF.k===c[0]?(trF.d<0?' ▾':' ▴'):''}</th>`).join('')}</tr></thead><tbody>${pg.map(r=>`<tr class="row"><td class="l">${esc(r[ix.day])}</td><td class="l">${esc(r[ix.strategy])}</td><td class="l">${esc(r[ix.label]?r[ix.instrument]+' '+r[ix.label]:r[ix.instrument]||'')}</td><td class="l"><span class="pill ${r[ix.side]==='LONG'?'accent':'warn'}">${esc(r[ix.side])}</span></td><td>${esc(r[ix.t_in])}${r[ix.d_in]&&r[ix.d_in]!==r[ix.day]?' <span class="faint">'+esc(r[ix.d_in].slice(5))+'</span>':''}</td><td>${esc(r[ix.t_out])}</td><td>${px2(r[ix.entry])}</td><td>${px2(r[ix.exit])}</td><td>${slTxt({stop:r[ix.stop],stop_on:r[ix.stop_on]})}</td><td class="l muted">${esc(r[ix.reason]||'')}</td><td>${rs(r[ix.charges])}</td><td class="${tone(r[ix.net])}">${rs(r[ix.net],1)}</td></tr>`).join('')||'<tr><td class="l" colspan="12"><div class="empty">No trades match.</div></td></tr>'}</tbody>`;
+    host.querySelector('#trpg').innerHTML=`<button ${trF.pg?'':'disabled'} id="trp">‹ Prev</button><span class="muted">page ${trF.pg+1} of ${pages}</span><button ${trF.pg<pages-1?'':'disabled'} id="trn">Next ›</button>`;
+    host.querySelector('#trp').onclick=()=>{trF.pg--;draw()};host.querySelector('#trn').onclick=()=>{trF.pg++;draw()};
+    host.querySelectorAll('#trtbl th.sortable').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(trF.k===k)trF.d=-trF.d;else{trF.k=k;trF.d=(k==='day'||k==='net'||k==='charges')?-1:1}trF.pg=0;draw()});
+    host.querySelector('#trcsv').onclick=()=>{const q=v=>v==null?'':'"'+String(v).replace(/"/g,'""')+'"';const csv=[P.cols.join(',')].concat(rows.map(r=>r.map(q).join(','))).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='edgestack_trades.csv';document.body.appendChild(a);a.click();a.remove()};
+  };
+  host.innerHTML=`<div class="tools"><select id="trs"><option value="">All strategies</option>${strats.map(s=>`<option>${esc(s)}</option>`).join('')}</select><input id="trf" type="date" min="${mn}" max="${mx}" aria-label="From"><input id="trt" type="date" min="${mn}" max="${mx}" aria-label="To"><select id="trr"><option value="all">All results</option><option value="win">Winners</option><option value="loss">Losers</option></select><input id="trq" type="search" placeholder="Search instrument / reason…"><button class="ibtn wide" id="trcsv">Download CSV</button></div><div class="muted" id="trsum" style="margin:6px 2px"></div><div class="tw"><table id="trtbl"></table></div><div class="pager" id="trpg"></div><p class="note" style="margin-top:0">Raw ledger rows: a strategy that adds in lots shows one row per lot, so counts can exceed the league table’s positions, and a few swing strategies differ from the league table (TOM_NIFTY, GAP_DOWN_LOWDELIVERY_BTST) because the league table settles swing positions its own way. Stopped / archived strategies are not listed. Net is after charges.</p>`;
+  const bind=(id,k,ev='input')=>host.querySelector(id)[ev==='change'?'onchange':'oninput']=e=>{trF[k]=e.target.value;trF.pg=0;draw()};
+  bind('#trs','s','change');bind('#trf','from','change');bind('#trt','to','change');bind('#trr','res','change');bind('#trq','q');
+  host.querySelector('#trs').value=trF.s;host.querySelector('#trr').value=trF.res;draw();
+}
 let sortK='net',sortD=-1;
 function renderOverall(O){
   stale=false;asofTxt='through '+O.data_through;
@@ -230,6 +261,7 @@ function renderOverall(O){
   <h2>Strategy league table <span class="aside">click a column to sort</span></h2>
   <div class="tools"><div class="seg" id="seg"></div><input id="q" type="search" placeholder="Search strategy…" aria-label="Search strategy"></div>
   <div class="tw"><table id="tbl"></table></div>
+  <h2>All trades <span class="aside">every closed paper trade, filter and download</span></h2><div id="trbox"><button class="ibtn wide" id="trload">Load all trades</button></div>
   <p class="note">${esc(O.note||'')} Return on capital = net P&amp;L ÷ the strategy’s capital need (margin estimate plus cushion). With a few sessions these numbers are small samples: they show execution and costs, not a ranking to trade on.</p>`;
   wireChart($('#ch'),ser);
   const COLS=[['strategy','Strategy','l'],['stype','Type','l'],['capital','Capital'],['positions','Positions'],['win_pct','Win %'],['pf','PF'],['net','Net P&L'],['curve','Curve'],['dd','Max drawdown'],['roc','Return on capital'],['costs','Charges'],['days','Sessions'],['best_day','Best day'],['worst_day','Worst day'],['grad','Graduation (60 pos · 20 sessions · PF 1.2)']];
@@ -240,6 +272,8 @@ function renderOverall(O){
       <td>${s.capital?cap(s.capital)+(s.capital_basis==='estimate'?' <span class="faint">est.</span>':''):'–'}</td><td>${s.positions}</td><td>${s.win_pct==null?'–':pct(s.win_pct,0)}</td><td>${s.pf==null?'–':s.pf}</td><td class="${tone(s.net)}" style="font-weight:650">${rs(s.net,1)}</td><td>${spark(s)}</td><td class="bad">${rs(ddOf(s))}</td><td class="${tone(roc)}">${roc==null?'–':(roc>0?'+':'')+roc.toFixed(1)+'%'}</td><td>${rs(s.costs)}</td><td>${s.days} <span class="faint">(${s.pos_days}+)</span></td><td class="good">${rs(s.best_day)}</td><td class="bad">${rs(s.worst_day)}</td><td>${grad(s)}</td></tr>`}).join('')||'<tr><td class="l" colspan="15"><div class="empty">No strategies match.</div></td></tr>'}</tbody>`;
     $('#tbl').querySelectorAll('th.sortable').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(sortK===k)sortD=-sortD;else{sortK=k;sortD=(k==='strategy'||k==='stype')?1:-1}draw()})};
   seg($('#seg'),typeOpts(counts),curType,v=>{curType=v;store.set('edge_type',v);draw()});$('#q').oninput=draw;draw();
+  const tb=$('#trbox'),go=async()=>{tb.innerHTML='<div class="empty">Loading trades…</div>';try{await loadTrades();trTable(tb)}catch(e){tb.innerHTML='<div class="empty">Could not load trades: '+esc(e.message)+' <button class="ibtn wide" id="trload">Retry</button></div>';$('#trload').onclick=go}};
+  if(TR)trTable(tb);else $('#trload').onclick=go;
 }
 
 /* ---------- STRATEGIES (catalogue) ---------- */
