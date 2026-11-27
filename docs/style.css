@@ -2,7 +2,7 @@
 :root{
   --bg:#F4F6F9;--surface:#FFFFFF;--surface2:#F8FAFC;--ink:#0F1B2A;--muted:#5B6B7C;--faint:#8A97A6;--line:#E3E8EE;--line2:#EEF2F6;
   --accent:#2563EB;--accent-soft:#E8F0FE;--good:#0B8A5C;--good-soft:#E3F5EC;--bad:#D32F2F;--bad-soft:#FDECEA;--warn:#A15C00;--warn-soft:#FFF3DC;
-  --t-buy:#2563EB;--t-sell:#C2410C;--t-both:#7C3AED;--t-swing:#0F766E;
+  --t-buy:#2563EB;--t-sell:#C2410C;--t-both:#7C3AED;--t-swing:#0F766E;--t-mcx:#B7791F;
   --shadow:0 1px 2px rgba(15,27,42,.05),0 4px 14px rgba(15,27,42,.05);
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,"Helvetica Neue",Arial,sans-serif;
@@ -11,11 +11,11 @@
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#0B1118;--surface:#121A24;--surface2:#0F1620;--ink:#E7EDF4;--muted:#93A3B5;--faint:#6B7B8D;--line:#223041;--line2:#1A2634;
   --accent:#6AA3FF;--accent-soft:#16253D;--good:#3DD598;--good-soft:#0F2B21;--bad:#FF7A70;--bad-soft:#321A1A;--warn:#E8B04C;--warn-soft:#2E2412;
-  --t-buy:#6AA3FF;--t-sell:#FF9A62;--t-both:#B79CFF;--t-swing:#4FD1C5;--shadow:0 1px 2px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.25);color-scheme:dark}}
+  --t-buy:#6AA3FF;--t-sell:#FF9A62;--t-both:#B79CFF;--t-swing:#4FD1C5;--t-mcx:#F6C453;--shadow:0 1px 2px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.25);color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0B1118;--surface:#121A24;--surface2:#0F1620;--ink:#E7EDF4;--muted:#93A3B5;--faint:#6B7B8D;--line:#223041;--line2:#1A2634;
   --accent:#6AA3FF;--accent-soft:#16253D;--good:#3DD598;--good-soft:#0F2B21;--bad:#FF7A70;--bad-soft:#321A1A;--warn:#E8B04C;--warn-soft:#2E2412;
-  --t-buy:#6AA3FF;--t-sell:#FF9A62;--t-both:#B79CFF;--t-swing:#4FD1C5;--shadow:0 1px 2px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.25);color-scheme:dark}
+  --t-buy:#6AA3FF;--t-sell:#FF9A62;--t-both:#B79CFF;--t-swing:#4FD1C5;--t-mcx:#F6C453;--shadow:0 1px 2px rgba(0,0,0,.4),0 6px 18px rgba(0,0,0,.25);color-scheme:dark}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
@@ -192,3 +192,14 @@ button.cd{cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:t
 .rules .chg{background:var(--warn-soft);color:var(--ink);border-radius:9px;padding:8px 10px;font-size:12.5px}
 .arch .scard{border-top-color:var(--faint)}
 .scard h3 span:first-child{min-width:0;overflow-wrap:anywhere}.scard h3 .pill{flex-shrink:0}
+
+/* 28 Nov 2026: NSE and MCX (commodity) shown in separate tables with their own totals */
+.mkt{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px;font-size:12.5px;color:var(--muted)}
+.mkt>span{display:inline-flex;align-items:center;gap:6px}.mkt .sd{width:8px;height:8px;border-radius:2px;display:inline-block}
+.mkt b{font:600 13px var(--mono);font-variant-numeric:tabular-nums}
+h2.mcxh{flex-wrap:wrap;gap:4px 10px;align-items:center;margin-top:34px}
+h3.sub3{font-size:13.5px;margin:16px 0 8px;font-weight:650;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline}h3.sub3 .aside{font-weight:450;color:var(--muted);font-size:12.5px}
+.totl{font-size:12.5px;color:var(--muted);margin:-4px 2px 8px;overflow-wrap:anywhere}.totl b{color:var(--ink)}.totl b.good{color:var(--good)}.totl b.bad{color:var(--bad)}
+tfoot tr.tot td{font-weight:650;border-top:2px solid var(--line);background:var(--surface2)}
+.pill.mcxp{background:color-mix(in srgb,var(--t-mcx) 18%,transparent);color:var(--ink)}
+.cdm{margin:2px 0 6px}
