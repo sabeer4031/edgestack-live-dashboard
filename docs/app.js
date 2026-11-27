@@ -251,14 +251,28 @@ function trTable(host){
   host.querySelector('#trs').value=trF.s;host.querySelector('#trr').value=trF.res;draw();
 }
 /* 21 Nov 2026: P&L calendar, charge split, per-strategy detail */
+/* 27 Nov 2026 (user): cells stay colour-only; click / tap a day -> a detail box inside the calendar panel with that day's net, gross, charges, positions and the per-strategy breakdown. */
 function calendar(ser){if(!ser.length)return '';const m={};ser.forEach(x=>m[x[0]]=x[1]);const mx=Math.max(...ser.map(x=>Math.abs(x[1])))||1;
   const months=[...new Set(ser.map(x=>x[0].slice(0,7)))];
-  return `<div class="cal">${months.map(mo=>{const [y,mm]=mo.split('-').map(Number),first=new Date(y,mm-1,1),nd=new Date(y,mm,0).getDate(),off=(first.getDay()+6)%7;let cells='';
+  return `<div class="card pad calp"><div class="cal">${months.map(mo=>{const [y,mm]=mo.split('-').map(Number),first=new Date(y,mm-1,1),nd=new Date(y,mm,0).getDate(),off=(first.getDay()+6)%7;let cells='';
     for(let i=0;i<off;i++)cells+='<i class="cd e"></i>';
     for(let d=1;d<=nd;d++){const k=`${mo}-${String(d).padStart(2,'0')}`,v=m[k];const wk=(off+d-1)%7>4;
-      cells+=v==null?`<i class="cd ${wk?'wk':'e'}" title="${k}"></i>`:`<i class="cd ${v>=0?'g':'r'}" style="--a:${(0.18+0.82*Math.abs(v)/mx).toFixed(2)}" title="${k}: ${rs(v,1)}"></i>`}
+      cells+=v==null?`<i class="cd ${wk?'wk':'e'}" title="${k}"></i>`:`<button type="button" class="cd ${v>=0?'g':'r'}" data-d="${k}" style="--a:${(0.18+0.82*Math.abs(v)/mx).toFixed(2)}" title="${k}: ${rs(v,1)}" aria-label="${k}: ${rs(v,1)}"></button>`}
     const tot=ser.filter(x=>x[0].startsWith(mo)).reduce((a,x)=>a+x[1],0);
-    return `<div class="cm"><div class="ct">${new Date(y,mm-1,1).toLocaleDateString('en-GB',{month:'short',year:'numeric'})} <b class="${tone(tot)}">${rs(tot,1)}</b></div><div class="cg">${cells}</div></div>`}).join('')}</div>`}
+    return `<div class="cm"><div class="ct">${new Date(y,mm-1,1).toLocaleDateString('en-GB',{month:'short',year:'numeric'})} <b class="${tone(tot)}">${rs(tot,1)}</b></div><div class="cg">${cells}</div></div>`}).join('')}</div>
+   <div class="cdet" id="cdet"><span class="faint">Click or tap a coloured day to see its P&amp;L.</span></div></div>`}
+function wireCal(root,S,ser){if(!root)return;const by={};
+  (S||[]).forEach(s=>{const x=Object.fromEntries((s.daily_x||[]).map(r=>[r[0],r]));(s.daily||[]).forEach(([d,v])=>{const r=x[d]||[];(by[d]=by[d]||[]).push({k:s.strategy,net:v,g:r[1],c:r[2],n:r[3]})})});
+  const tot=Object.fromEntries((ser||[]).map(x=>[x[0],x[1]]));
+  const show=b=>{root.querySelectorAll('.cd.sel').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');const d=b.dataset.d,L=(by[d]||[]).sort((a,c)=>c.net-a.net);
+    const sum=f=>L.some(r=>r[f]!=null)?L.reduce((a,r)=>a+(r[f]||0),0):null,net=tot[d]!=null?tot[d]:sum('net'),g=sum('g'),c=sum('c'),n=sum('n');
+    root.querySelector('#cdet').innerHTML=`<div class="cdh"><b>${esc(new Date(d+'T00:00:00').toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'}))}</b><button type="button" class="ibtn" id="cdx" aria-label="Close" title="Close">×</button></div>
+     <div class="tiles cdt">${tile('Net P&amp;L',rs(net,1),'after all charges',tone(net))}${tile('Gross',g==null?'–':rs(g,1),'before charges',tone(g))}${tile('Charges',c==null?'–':rs(c),'brokerage, STT, fees')}${tile('Positions closed',n==null?'–':NF.format(n),`${L.length} strateg${L.length===1?'y':'ies'}`)}</div>
+     <div class="tw2"><table class="dt"><thead><tr><th class="l">Strategy</th><th>Positions</th><th>Gross</th><th>Charges</th><th>Net</th></tr></thead><tbody>${L.map(r=>`<tr><td class="l">${esc(r.k)}</td><td>${r.n==null?'–':r.n}</td><td class="${tone(r.g)}">${r.g==null?'–':rs(r.g,1)}</td><td>${r.c==null?'–':rs(r.c)}</td><td class="${tone(r.net)}" style="font-weight:650">${rs(r.net,1)}</td></tr>`).join('')||'<tr><td class="l" colspan="5" class="faint">No strategy detail for this day.</td></tr>'}</tbody></table></div>`;
+    root.querySelector('#cdx').onclick=()=>{b.classList.remove('sel');root.querySelector('#cdet').innerHTML='<span class="faint">Click or tap a coloured day to see its P&amp;L.</span>'};
+    if(matchMedia('(max-width:640px)').matches)root.querySelector('#cdet').scrollIntoView({behavior:'smooth',block:'nearest'})};
+  root.querySelectorAll('button.cd').forEach(b=>b.addEventListener('click',()=>show(b)));
+}
 function costSplit(P,strat){const cs=P.cost_split||{};const v=[0,0,0,0];Object.entries(cs).forEach(([k,a])=>{if(!strat||k===strat)a.forEach((x,i)=>v[i]+=x)});const tot=v.reduce((a,b)=>a+b,0)||1;
   const L=['Brokerage','STT','Exchange','SEBI, stamp, GST'];return `<div class="cs">${v.map((x,i)=>`<span class="pill" title="${L[i]}">${L[i]} ${rs(x)} · ${Math.round(100*x/tot)}%</span>`).join(' ')}</div>`}
 const openS=new Set();
@@ -289,14 +303,14 @@ function renderOverall(O){
   <h2>Cumulative P&amp;L <span class="aside">hover for the day</span></h2><div id="ch">${chart(ser)}</div>
   <div class="types" style="margin-top:14px">${groups.map(g=>`<div class="tcard" style="--tc:${g.t.color}"><div class="n">${esc(g.t.label)}<small>${g.rows.length} strateg${g.rows.length>1?'ies':'y'}</small></div><div class="pl ${tone(g.net)}">${rs(g.net,1)}</div><div class="meta">${NF.format(g.pos)} positions · capital ${cap(g.cap)}</div></div>`).join('')}</div>
   <h2>By month</h2>${monthBars(ser)}
-  <h2>Daily P&amp;L calendar <span class="aside">green = profit, red = loss, hover for the amount</span></h2>${calendar(ser)}
+  <h2>Daily P&amp;L calendar <span class="aside">green = profit, red = loss · click or tap a day for its P&amp;L</span></h2><div id="calw">${calendar(ser)}</div>
   ${twins(S)}
   <h2>Strategy league table <span class="aside">click a column to sort, click a row for its curve, months and trades</span></h2>
   <div class="tools"><div class="seg" id="seg"></div><input id="q" type="search" placeholder="Search strategy…" aria-label="Search strategy"></div>
   <div class="tw"><table id="tbl"></table></div>
   <h2>All trades <span class="aside">every closed paper trade, filter and download</span></h2><div id="trbox"><a class="ibtn wide" href="trades.html" style="text-decoration:none">Open the All trades page →</a> <button class="ibtn wide" id="trload">Or load it here</button></div>
   <p class="note">${esc(O.note||'')} Return on capital = net P&amp;L ÷ the strategy’s capital need (margin estimate plus cushion). With a few sessions these numbers are small samples: they show execution and costs, not a ranking to trade on.</p>`;
-  wireChart($('#ch'),ser);
+  wireChart($('#ch'),ser);wireCal($('#calw'),S,ser);
   const COLS=[['strategy','Strategy','l'],['stype','Type','l'],['capital','Capital'],['positions','Positions'],['win_pct','Win %'],['pf','PF'],['net','Net P&L'],['curve','Curve'],['dd','Max drawdown'],['roc','Return on capital'],['costs','Charges'],['days','Sessions'],['best_day','Best day'],['worst_day','Worst day'],['grad','Graduation (60 pos · 20 sessions · PF 1.2)']];
   const val=(s,k)=>k==='dd'?ddOf(s):k==='curve'?cumOf(s).length:k==='grad'?Math.min(1,(s.positions||0)/60)+Math.min(1,(s.days||0)/20):k==='roc'?(s.capital?s.net/s.capital*100:null):k==='stype'?(TYPE[s.stype]||{}).short:s[k];
   const draw=()=>{const q=($('#q').value||'').toLowerCase().replace(/[_\s]+/g,' ');
@@ -312,19 +326,49 @@ function renderOverall(O){
 }
 
 /* ---------- STRATEGIES (catalogue) ---------- */
+/* 27 Nov 2026: click a card -> full rules (what, entry, exit, trailing, instruments + lots, holding, status) from the plain cards (plain/live_<KEY>.json). */
+const openK=new Set();
+function xtag(t){const raw=t.toLowerCase(),l=raw.replace(/(and )?no (profit )?target|(and )?no trail\w*( stop)?|no stop-loss/g,'');
+  if(/^time exit/.test(l))return ['tm','Time'];if(/^(target|profit exit)/.test(l))return ['t','Target'];if(/^(safety|stop|emergency)/.test(l))return ['s','Stop'];
+  if(/trail/.test(l))return ['tr','Trail'];if(/\btarget\b/.test(l))return ['t','Target'];if(/stop|safety/.test(l))return ['s','Stop'];
+  if(/\d{1,2}[:.]\d{2}|\bpm\b|minutes|square|close[ds]? at/.test(l))return ['tm','Time'];return null}
+function rulesPanel(s){const c=s.card||{};const lst=(a,ol)=>a&&a.length?`<${ol?'ol':'ul'}>${a.map(x=>`<li>${esc(x)}</li>`).join('')}</${ol?'ol':'ul'}>`:'<p class="faint">Not written yet.</p>';
+  const trail=[...(c.exit||[]),...(c.entry||[])].filter(x=>/trail/i.test(x)&&!/no trail|no target, no trail|and no trailing/i.test(x));
+  const st=s.archived?`Archived: stopped ${esc(s.stopped||'')}. Its P&amp;L is not in any total.`:s.status==='running'?'Running · experimental paper forward test (no real orders).':esc((s.status||'').replace(/^waiting: /,'Waiting: '))+' · experimental paper forward test.';
+  const B=(t,body,full)=>`<div class="rb${full?' full':''}"><h4><i></i>${t}</h4>${body}</div>`;
+  return `<div class="rules" data-stop>
+   ${c.rules_changed?B('Rule change',`<div class="chg">${esc(c.rules_changed)}</div>`,1):''}
+   ${B('What it is',`<p>${esc(s.one_line||'')}</p>${c.why?`<p class="muted" style="margin-top:6px">${esc(c.why)}</p>`:''}`,1)}
+   ${B('Entry rules',lst(c.entry,1))}
+   ${B('Exit rules',c.exit&&c.exit.length?`<ul>${c.exit.map(x=>{const g=xtag(x);return `<li>${g?`<span class="tag ${g[0]}">${g[1]}</span>`:''}${esc(x)}</li>`}).join('')}</ul>`:'<p class="faint">Not written yet.</p>')}
+   ${B('Trailing stop',trail.length?lst(trail):'<p>No trailing stop: the stop stays where it was set at entry.</p>')}
+   ${B('Instruments and lots',`<p>${esc(c.what||'Not written yet.')}</p>`)}
+   ${B('Holding time',`<p>${esc(c.holding||s.holding||'–')}</p>`)}
+   ${c.money?B('Capital',`<p>${esc(c.money)}</p>`):''}
+   ${B('Status',`<p>${st}</p>${c.verdict_plain?`<p class="muted" style="margin-top:6px">${esc(c.verdict_plain)}</p>`:''}${s.claim?`<p class="muted" style="margin-top:6px">${esc(s.claim)}</p>`:''}${s.why_stopped?`<p class="muted" style="margin-top:6px">${esc(s.why_stopped)}</p>`:''}`,1)}
+  </div>`}
+function scard(s,t){const run=s.status==='running',wait=/waiting|no trades/.test(s.status||''),op=openK.has(s.strategy);
+  const pill=s.archived?`<span class="pill">archived ${esc((s.stopped||'').slice(0,10))}</span>`:`<span class="pill ${run?'good':wait?'warn':''}" title="${esc(s.status||'')}">${esc(run?'running':wait?(/^no trades/.test(s.status)?'no trades yet':'waiting'):s.status)}</span>`;
+  return `<div class="scard x ${op?'open':''}" data-k="${esc(s.strategy)}" style="--tc:${t.color}" role="button" tabindex="0" aria-expanded="${op}"><h3><span>${esc(s.strategy)}</span>${pill}</h3><p>${esc(s.one_line||'No description card yet.')}</p>
+   <div class="kv"><div><span>${s.archived?'Net (not counted)':'Net so far'}</span><b class="${tone(s.net)}">${s.positions?rs(s.net,1):'–'}</b></div><div><span>Positions</span><b>${s.positions||0}</b></div><div><span>Capital</span><b>${s.capital?cap(s.capital):'–'}${s.capital_basis==='estimate'?' <small class="faint">est.</small>':''}</b></div></div>
+   <span class="more">${op?'▾ Hide rules':'▸ Entry, exit, trailing, lots'}</span>${op?rulesPanel(s):''}</div>`}
 function renderStrategies(O){
   stale=false;asofTxt='through '+O.data_through;
-  const S=O.strategies||[];const counts={all:S.length};TYPES.forEach(t=>counts[t.id]=S.filter(s=>s.stype===t.id).length);
+  const S=O.strategies||[];const A=(O.archived||[]).map(a=>({...a,archived:true,why_stopped:a.why}));const counts={all:S.length};TYPES.forEach(t=>counts[t.id]=S.filter(s=>s.stype===t.id).length);
   if(curType!=='all'&&!counts[curType])curType='all';
-  $('#main').innerHTML=`<h1>Strategies</h1><p class="sub">${S.length} paper-book strategies in ${TYPES.filter(t=>counts[t.id]).length} groups. Each is a separate engine with its own ledger; all are experimental forward tests.</p>
+  $('#main').innerHTML=`<h1>Strategies</h1><p class="sub">${S.length} paper-book strategies in ${TYPES.filter(t=>counts[t.id]).length} groups${A.length?`, plus ${A.length} archived`:''}. Each is a separate engine with its own ledger; all are experimental forward tests. Click a card for its entry, exit and trailing rules.</p>
   <div class="types">${TYPES.filter(t=>counts[t.id]).map(t=>`<div class="tcard" style="--tc:${t.color}"><div class="n">${esc(t.label)}<small>${counts[t.id]}</small></div><div class="meta" style="margin-top:6px">${esc(t.help)}</div></div>`).join('')}</div>
-  <div class="tools"><div class="seg" id="seg"></div><input id="q" type="search" placeholder="Search strategy…" aria-label="Search strategy"></div><div id="cards"></div>`;
+  <div class="tools"><div class="seg" id="seg"></div><input id="q" type="search" placeholder="Search strategy or rule…" aria-label="Search strategy"><button class="ibtn wide" id="xall" type="button">Expand all</button></div><div id="cards"></div>`;
+  const hit=(s,q)=>!q||(s.strategy+' '+(s.one_line||'')+' '+JSON.stringify(s.card||{})).toLowerCase().replace(/_/g,' ').includes(q);
   const draw=()=>{const q=($('#q').value||'').toLowerCase().replace(/[_\s]+/g,' ');let h='';
-    TYPES.forEach(t=>{const rows=S.filter(s=>s.stype===t.id&&(curType==='all'||curType===t.id)&&(!q||(s.strategy+' '+(s.one_line||'')).toLowerCase().replace(/_/g,' ').includes(q))).sort((a,b)=>b.net-a.net);if(!rows.length)return;
-      h+=`<h2><span class="sd" style="width:10px;height:10px;border-radius:3px;background:${t.color};display:inline-block"></span>${esc(t.label)} <span class="aside">${rows.length}</span></h2><div class="cards">${rows.map(s=>{const run=s.status==='running',wait=/waiting|no trades/.test(s.status||'');
-        return `<div class="scard" style="--tc:${t.color}"><h3><span>${esc(s.strategy)}</span><span class="pill ${run?'good':wait?'warn':''}">${esc(run?'running':wait?(s.status.replace(/^waiting: /,'')||'waiting'):s.status)}</span></h3><p>${esc(s.one_line||'No description card yet.')}</p>
-        <div class="kv"><div><span>Capital</span><b>${s.capital?cap(s.capital):'–'}${s.capital_basis==='estimate'?' <small class="faint">est.</small>':''}</b></div><div><span>Net so far</span><b class="${tone(s.net)}">${s.positions?rs(s.net,1):'–'}</b></div><div><span>Positions</span><b>${s.positions||0}</b></div></div></div>`}).join('')}</div>`});
-    $('#cards').innerHTML=h||'<div class="empty">No strategies match.</div>'};
+    TYPES.forEach(t=>{const rows=S.filter(s=>s.stype===t.id&&(curType==='all'||curType===t.id)&&hit(s,q)).sort((a,b)=>b.net-a.net);if(!rows.length)return;
+      h+=`<h2><span class="sd" style="width:10px;height:10px;border-radius:3px;background:${t.color};display:inline-block"></span>${esc(t.label)} <span class="aside">${rows.length}</span></h2><div class="cards">${rows.map(s=>scard(s,t)).join('')}</div>`});
+    const ar=A.filter(s=>curType==='all'&&hit(s,q));
+    if(ar.length)h+=`<h2>Archived (stopped) <span class="aside">${ar.length} · kept for reference, not in any P&amp;L total</span></h2><div class="cards arch">${ar.map(s=>scard(s,{color:'var(--faint)'})).join('')}</div>`;
+    $('#cards').innerHTML=h||'<div class="empty">No strategies match.</div>';
+    $('#cards').querySelectorAll('.scard.x').forEach(c=>{const tg=()=>{const k=c.dataset.k;openK.has(k)?openK.delete(k):openK.add(k);draw()};
+      c.onclick=e=>{if(e.target.closest('[data-stop]'))return;tg()};c.onkeydown=e=>{if((e.key==='Enter'||e.key===' ')&&e.target===c){e.preventDefault();tg()}}})};
+  $('#xall').onclick=()=>{const all=[...S,...A].map(s=>s.strategy);const anyClosed=all.some(k=>!openK.has(k));all.forEach(k=>anyClosed?openK.add(k):openK.delete(k));$('#xall').textContent=anyClosed?'Collapse all':'Expand all';draw()};
   seg($('#seg'),typeOpts(counts),curType,v=>{curType=v;store.set('edge_type',v);draw()});$('#q').oninput=draw;draw();
 }
 return {boot};
